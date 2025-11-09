@@ -76,93 +76,11 @@ y.backward()
 print("\nGradient dy/dx at x=3:", x.grad.item())
 
 
-Here’s a **clean, commented version of your TensorFlow and PyTorch comparison code** — followed by **a short, simplified theory section** you can directly copy into a `.txt` file.
-
----
-
-### ✅ **Fully Commented Code (copy for .py or notebook)**
-
-```python
-# -------------------------------
-# TensorFlow Implementation
-# -------------------------------
-import tensorflow as tf
-import numpy as np
-
-# 1. Create random integer tensors (16x16 matrices)
-a = tf.random.uniform(shape=[16, 16], minval=0, maxval=101, dtype=tf.int32)
-b = tf.random.uniform(shape=[16, 16], minval=0, maxval=101, dtype=tf.int32)
-
-# 2. Basic arithmetic operations
-print("Addition:\n", tf.add(a, b))
-print("\nSubtraction:\n", tf.subtract(a, b))
-print("\nElement-wise Multiplication:\n", tf.multiply(a, b))
-print("\nMatrix Multiplication:\n", tf.matmul(a, b))
-print("\nDivision:\n", tf.divide(a, b))
-
-# 3. Statistical operations
-print("\nMean of A:", tf.reduce_mean(a))
-print("\nMax of B:", tf.reduce_max(b))
-print("\nTranspose of A:\n", tf.transpose(a))
-
-# 4. Broadcasting example — Add identity matrix to 'a'
-c = tf.eye(num_rows=16, dtype=tf.int32)  # 16x16 identity matrix
-print("\nBroadcasted Add:\n", a + c)
-
-# 5. Reshaping and slicing tensors
-arr = tf.constant(np.arange(1, 13), shape=(3, 4))
-print("\nOriginal Tensor:\n", arr)
-print("\nSliced [1:3, 1:3]:\n", arr[1:3, 1:3])
-
-# 6. Automatic differentiation using GradientTape
-x = tf.Variable(3.0)
-with tf.GradientTape() as tape:
-    y = x**2 + 5*x + 2  # simple function y = x² + 5x + 2
-grad = tape.gradient(y, x)
-print("\nGradient of y = x² + 5x + 2 at x=3:", grad.numpy())
 
 
-# -------------------------------
-# PyTorch Implementation
-# -------------------------------
-import torch
+ Simplified Theory :- 
 
-# 1. Create random integer tensors
-A = torch.randint(low=0, high=101, size=(16, 16))
-B = torch.randint(low=0, high=101, size=(16, 16))
 
-# 2. Basic arithmetic operations
-print("\nAddition:\n", A + B)
-print("\nSubtraction:\n", A - B)
-print("\nElementwise Multiplication:\n", A * B)
-print("\nMatrix Multiplication:\n", torch.mm(A, B))
-print("\nDivision:\n", A / B)
-print("\nTranspose:\n", A.T)
-
-# 3. Statistical operations
-print("\nMean of A:", A.float().mean())
-print("\nMax of B:", B.max())
-
-# 4. Reshape and concatenate tensors
-C = torch.arange(1, 13).reshape(3, 4)
-print("\nOriginal Tensor C:\n", C)
-print("\nReshaped (2,6):\n", C.reshape(2, 6))
-print("\nConcatenation along rows:\n", torch.cat([A, B], dim=0))
-
-# 5. Automatic differentiation
-x = torch.tensor(3.0, requires_grad=True)
-y = x**2 + 5*x + 2
-y.backward()
-print("\nGradient dy/dx at x=3:", x.grad.item())
-```
-
----
-
-### 📘 **Simplified Theory (copy for .txt file)**
-
-**TensorFlow and PyTorch Basic Operations — Simplified Theory**
-
----
 
 1. Introduction:
 TensorFlow and PyTorch are popular **deep learning frameworks** used for building and training neural networks.
@@ -237,5 +155,6 @@ PyTorch uses **requires_grad=True** and **.backward()**.
 In Simple Words:
 Tensors are data containers. You can do math on them just like NumPy arrays.
 TensorFlow and PyTorch both can automatically compute gradients, making them powerful for deep learning.
+
 
 
