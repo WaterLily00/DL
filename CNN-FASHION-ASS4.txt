@@ -1,0 +1,290 @@
+4 Build image classification model using CNN on fashion MNIST dataset.,
+
+code :- 
+
+### 1) Annotated & corrected code (copy-paste)
+
+```python
+# -------------------------
+# 0) Unzip dataset
+# -------------------------
+import zipfile
+zip_path = "/content/Fashion MNIST-20221031T093245Z-001.zip"
+
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall("/content/FashionMNIST")
+
+
+# -------------------------
+# 1) Imports
+# -------------------------
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D
+from tensorflow.keras.utils import to_categorical
+
+# -------------------------
+# 2) Load CSVs
+# NOTE: use train and test files correctly. The original code loaded test twice;
+# here we assume the archive contains 'fashion-mnist_train.csv.zip' and 'fashion-mnist_test.csv.zip'.
+# If your filenames differ, update them accordingly.
+# -------------------------
+x_train = pd.read_csv("/content/FashionMNIST/Fashion MNIST/fashion-mnist_train.csv.zip")
+x_test  = pd.read_csv("/content/FashionMNIST/Fashion MNIST/fashion-mnist_test.csv.zip")
+
+# quick shape check (optional)
+print("raw train shape:", x_train.shape)
+print("raw test  shape:", x_test.shape)
+
+
+# -------------------------
+# 3) Separate labels and features
+# - 'label' column contains class (0-9)
+# - remaining columns are 784 pixel values (0-255)
+# -------------------------
+y_train = x_train['label'].values
+x_train = x_train.drop(columns=['label']).values
+
+y_test = x_test['label'].values
+x_test = x_test.drop(columns=['label']).values
+
+
+# -------------------------
+# 4) Normalize pixel values to [0,1]
+# - helps training converge faster and be more stable
+# -------------------------
+x_train = x_train / 255.0
+x_test  = x_test  / 255.0
+
+
+# -------------------------
+# 5) Reshape to image shape expected by Conv2D: (n_samples, 28, 28, 1)
+# -------------------------
+x_train = x_train.reshape(-1, 28, 28, 1)
+x_test  = x_test.reshape(-1, 28, 28, 1)
+
+
+# -------------------------
+# 6) One-hot encode labels for categorical_crossentropy
+# -------------------------
+y_train = to_categorical(y_train, 10)
+y_test  = to_categorical(y_test, 10)
+
+
+# -------------------------
+# 7) Build a simple CNN
+# - Conv2D layers learn spatial features
+# - MaxPooling reduces spatial size and keeps important features
+# - Flatten -> Dense layers for classification
+# -------------------------
+model = Sequential()
+model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)))
+model.add(MaxPooling2D((2, 2)))
+
+model.add(Conv2D(64, (3, 3), activation='relu'))
+model.add(MaxPooling2D((2, 2)))
+
+model.add(Conv2D(64, (3, 3), activation='relu'))
+model.add(MaxPooling2D((2, 2)))
+
+model.add(Flatten())
+model.add(Dense(128, activation='relu'))
+model.add(Dense(10, activation='softmax'))
+
+
+# -------------------------
+# 8) Compile model
+# - optimizer: Adam (good default)
+# - loss: categorical_crossentropy (for one-hot labels)
+# - metric: accuracy
+# -------------------------
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.summary()   # prints model architecture (optional)
+
+
+# -------------------------
+# 9) Train model
+# - epochs: number of passes over training data
+# - batch_size: samples per weight update
+# - validation_split: hold out 20% of train for validation during training
+# -------------------------
+history = model.fit(x_train, y_train, epochs=5, batch_size=64, validation_split=0.2, verbose=1)
+
+
+# -------------------------
+# 10) Evaluate on test set (held-out)
+# -------------------------
+test_loss, test_acc = model.evaluate(x_test, y_test, verbose=1)
+print("Test loss:", test_loss)
+print("Test accuracy:", test_acc)
+
+
+# -------------------------
+# 11) Plot training & validation accuracy curve
+# - useful to check learning/overfitting
+# -------------------------
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
+
+
+# -------------------------
+# 12) Predictions and visualize some test images with predicted vs true labels
+# - note: x_test is normalized and shaped (28,28,1); squeeze to plot grayscale
+# -------------------------
+predictions = model.predict(x_test)
+
+class_names = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
+               'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+
+plt.figure(figsize=(6, 12))  # change size as needed
+for i in range(10):
+    plt.subplot(5, 2, i + 1)
+    # squeeze channel dimension for display and set cmap
+    plt.imshow(x_test[i].squeeze(), cmap='gray')
+    predicted_label = class_names[np.argmax(predictions[i])]
+    true_label = class_names[np.argmax(y_test[i])]
+    plt.title(f"Pred: {predicted_label}\nTrue: {true_label}")
+    plt.axis('off')
+
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+### 2) Simplified theory :- 
+
+## Feedforward + Convolutional Neural Network (CNN) — Fashion MNIST ., 
+
+
+Definition:
+A Convolutional Neural Network (CNN) is a deep learning model mainly used for image recognition and classification.
+It automatically learns important features such as edges, textures, and shapes from images using filters.
+
+1. CNN Architecture
+
+A basic CNN has the following layers:
+
+Input Layer :
+
+* Takes the image as input.
+
+* Example: 28×28×1 for grayscale, 28×28×3 for color.
+
+Convolutional Layer (Conv2D) :
+
+* Applies small filters (kernels) across the image to detect patterns.
+
+* Produces a feature map showing where features occur.
+
+Formula:
+* Z₍ᵢⱼ₎^(ᵏ) = Σₘₙ ( X₍ᵢ₊ₘⱼ₊ₙ₎ × Wₘₙ^(ᵏ) ) + b^(ᵏ)
+
+* After applying filter weights and bias, an activation function (usually ReLU) is applied:
+A = f(Z) = max(0, Z)
+
+Pooling Layer (MaxPooling) :
+
+* Reduces the size of feature maps while keeping key information.
+
+* Common operation: take the maximum value from each 2×2 region.
+
+* Formula: P₍ᵢⱼ₎ = max( X₍ᵢ:ᵢ₊ₚ , ⱼ:ⱼ₊ₚ₎ )
+
+Flatten Layer :
+
+* Converts 2D feature maps into a 1D vector so it can be used by Dense layers.
+
+Fully Connected (Dense) Layers :
+
+* Combine all extracted features to make predictions.
+
+* The final layer uses Softmax activation for multi-class classification.
+
+* Formula:
+Z = W·X + b
+A = f(Z)
+
+* Softmax: Softmax(zᵢ) = e^(zᵢ) / Σⱼ e^(zⱼ)
+
+2. Overall Flow
+
+* Image → Convolution → ReLU → Pooling → Flatten → Dense → Output
+
+3. Advantages
+
+* Learns features automatically (no manual feature extraction).
+
+* Works very well for image classification, face/object detection, etc.
+
+* Handles variation in position and orientation of objects effectively.
+
+
+
+1. Dataset:
+
+* Fashion MNIST contains 28×28 grayscale images of 10 clothing classes (T-shirt, Trouser, etc.).
+* Each image has 784 pixels flattened to a vector in raw CSV form.
+
+2. Preprocessing:
+
+* Separate label column; the rest are pixel values (0–255).
+* Normalize pixels: divide by 255 → values in [0,1]. This speeds up training and stabilizes learning.
+* Reshape to image shape for CNN: (n_samples, 28, 28, 1).
+* Convert labels to one-hot vectors (length 10) for categorical classification.
+
+3. Model idea (CNN):
+
+* Convolutional layers (Conv2D) apply small filters (e.g., 3×3) across the image to learn local patterns like edges or textures.
+* Activation (ReLU) makes the network non-linear and helps learning.
+* MaxPooling reduces spatial size while keeping strongest features, making the model faster and reducing overfitting.
+* Flatten turns final feature maps into a 1D vector.
+* Dense (fully connected) layers learn combinations of features to classify into classes.
+* Final Dense layer with Softmax outputs probabilities for each class (sum = 1).
+
+4. Key formulas (per neuron / conv):
+
+* Dense neuron: Z = W·X + b ; A = f(Z) where f is an activation (ReLU/Softmax).
+* Convolution: output(i,j) = sum_over_k ( input_region * filter_k ) + bias ; then apply activation.
+
+5. Loss, Optimizer, Metric:
+
+* Loss: categorical_crossentropy (measures mismatch between predicted probabilities and true one-hot labels).
+* Optimizer: Adam (adaptive learning rate; good default).
+* Metric:    accuracy (fraction correctly predicted).
+
+6. Training:
+
+* Epoch:                one pass through all training samples.
+* Batch size:           how many samples used to compute each gradient update (e.g., 64).
+* Validation split:    part of training used to check generalization during training.
+
+7. Evaluation:
+
+* Evaluate model on a held-out test set to get unbiased performance.
+* Plot training vs validation accuracy to detect underfitting or overfitting:
+
+  * If training >> validation → overfitting.
+  * If both low → underfitting.
+
+8. Common improvements:
+
+* Data augmentation (rotate/shift) to reduce overfitting.
+* Add Dropout or L2 regularization to reduce overfitting.
+* Use EarlyStopping to stop training when validation stops improving.
+* Increase epochs, change batch size, or tune architecture for better performance.
+
+9. In one line:
+
+ A CNN learns local patterns from images with conv + pooling layers, flattens the result,
+ then uses dense layers to output class probabilities; 
+ training minimizes cross-entropy using an optimizer like Adam.
+
+
+

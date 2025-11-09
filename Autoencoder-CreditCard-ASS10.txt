@@ -1,0 +1,199 @@
+10. Use Autoencoder to implement anomaly detection on credit card dataset .,
+
+code :- 
+
+Anomaly detection on Credit Card Fraud dataset using an Autoencoder.
+
+This script:
+- Loads the creditcard.csv dataset
+- Preprocesses (standardizes) features
+- Trains an autoencoder only on 'normal' transactions (Class=0)
+- Uses reconstruction error (MSE) to detect anomalies (fraudulent transactions)
+- Evaluates detection with confusion matrix and classification report
+
+
+# IMPORTS (what each is used for)
+
+import numpy as np                          # numerical arrays and math
+import pandas as pd                         # read CSV and data manipulation
+import tensorflow as tf                     # core TensorFlow (optional to reference)
+from tensorflow import keras
+import matplotlib.pyplot as plt              # plotting graphs
+from sklearn.metrics import (                # evaluation metrics
+    confusion_matrix, classification_report,
+    accuracy_score, precision_score, recall_score
+)
+from sklearn.model_selection import train_test_split  # split dataset
+from tensorflow.keras import layers, models           # build encoder/decoder models
+from sklearn.preprocessing import StandardScaler      # feature scaling
+import seaborn as sns                                # nicer confusion matrix plot
+
+
+# WHAT IS AN AUTOENCODER? (short)
+
+# An autoencoder is an unsupervised neural network that learns to reconstruct
+ its input. It consists of:
+  - Encoder: compresses input to a low-dimensional representation (latent code)
+  - Decoder: reconstructs the input from the latent code
+
+# Working principle:
+  - Train the network on "normal" data so the model learns how normal examples look.
+  - At inference, compute reconstruction error (e.g., MSE) for each sample.
+  - Samples with high reconstruction error are likely to be anomalous (they differ
+   from the normal patterns the autoencoder learned).
+
+# In this example we use the credit-card dataset: we train the autoencoder only on
+# non-fraud transactions and then detect fraud by looking at reconstruction errors.
+
+
+# 1) LOAD DATA
+
+dataset = pd.read_csv('creditcard.csv')  # expects file in working directory
+
+# Separate features and target
+
+X = dataset.drop('Class', axis=1)  # all columns except 'Class'
+y = dataset['Class']               # 0 = normal, 1 = fraud (anomaly)
+
+
+# 2) PREPROCESSING
+
+# StandardScaler centers features to zero mean and unit variance — helps training.
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+
+# 3) TRAIN/TEST SPLIT
+
+# Keep a hold-out test set to evaluate detection performance.
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# For training the autoencoder, we will use only normal transactions (Class == 0)
+
+X_train_normal = X_train[y_train == 0]
+
+# For later thresholding we need MSE distribution on normal test points
+
+X_test_normal = X_test[y_test == 0]
+
+# Keep anomalies from test set for evaluation if needed
+
+X_test_anomalies = X_test[y_test == 1]
+
+# Convert y_test to numpy array for boolean indexing later
+
+y_test_np = np.array(y_test)
+
+
+# 4) AUTOENCODER ARCHITECTURE
+
+# Encoder: compress input dimension -> small latent dimension
+# Decoder: reconstruct from latent back to original dimension
+input_dim = X_train_normal.shape[1]
+
+# Simple encoder as Sequential model
+
+encoder = models.Sequential([
+    layers.Input(shape=(input_dim,)),
+    layers.Dense(32, activation="relu"),   # reduce dimensionality
+    layers.Dense(16, activation="relu"),
+    layers.Dense(8, activation="relu")     # latent representation size = 8
+], name="encoder")
+
+# Simple decoder that mirrors the encoder
+
+decoder = models.Sequential([
+    layers.Input(shape=(8,)),
+    layers.Dense(16, activation="relu"),
+    layers.Dense(32, activation="relu"),
+    layers.Dense(input_dim, activation="linear")  # linear output for regression (reconstruction)
+], name="decoder")
+
+# Full autoencoder: encoder followed by decoder
+
+autoencoder = models.Sequential([encoder, decoder], name="autoencoder")
+autoencoder.compile(loss="mean_squared_error", optimizer="adam")
+autoencoder.summary()  # prints model layers and parameter counts
+
+
+# 5) TRAIN AUTOENCODER
+
+# Train only on normal (non-fraud) transactions so the model learns normal behavior.
+# Important: we use X_train_normal as both input and target.
+
+history = autoencoder.fit(
+    X_train_normal, X_train_normal,
+    epochs=10,
+    shuffle=True,
+    batch_size=64,
+    validation_data=(X_test_normal, X_test_normal)  # optional: monitor normal recon error on validation
+)
+
+
+# 6) PREDICTION & RECONSTRUCTION ERROR (MSE)
+
+# Reconstruct the entire test set (both normal and fraudulent) and compute per-sample MSE
+
+X_test_reconstructed = autoencoder.predict(X_test)
+mse = np.mean(np.power(X_test - X_test_reconstructed, 2), axis=1)  # mean squared error per sample
+
+
+# 7) THRESHOLD SELECTION
+
+# Use the 95th percentile of MSEs computed on normal test samples as threshold.
+# Rationale: most normal points will have low MSE; values above threshold considered anomalies.
+
+threshold = np.percentile(mse[y_test_np == 0], 95)
+print("Reconstruction error threshold (95th percentile of normal test MSE):", threshold)
+
+
+# 8) ANOMALY DECISION
+
+# If a sample's MSE exceeds the threshold, mark it as anomaly (True), else normal (False)
+anomalies = mse > threshold
+total_anomalies = np.sum(anomalies)
+print("Total No. of Anomalies Detected:", total_anomalies)
+
+
+# 9) VISUALIZE MSE & THRESHOLD
+
+plt.figure(figsize=(12, 6))
+plt.plot(mse, label="MSE (reconstruction error)", marker='o', linestyle='', markersize=3)
+plt.axhline(threshold, label=f"Threshold = {threshold:.4f}", color="red")
+plt.xlabel("Test sample index")
+plt.ylabel("MSE")
+plt.title("Reconstruction Error (MSE) for Test Samples")
+plt.legend()
+plt.show()
+
+
+# 10) EVALUATION
+
+# Compare anomaly flags (predicted) with true labels (y_test_np)
+
+conf_matrix = confusion_matrix(y_test_np, anomalies)
+print("Confusion Matrix:\n", conf_matrix)
+
+print("\nClassification Report:")
+print(classification_report(y_test_np, anomalies, digits=4))
+
+# Plot confusion matrix
+
+plt.figure(figsize=(6, 4))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', cbar=False, annot_kws={"size": 14})
+plt.xlabel("Predicted label (0=normal, 1=anomaly)")
+plt.ylabel("True label (0=normal, 1=fraud)")
+plt.title("Confusion Matrix")
+plt.show()
+
+# Compute aggregate metrics (note: with class imbalance, accuracy is not very informative)
+
+accuracy = accuracy_score(y_test_np, anomalies)
+precision = precision_score(y_test_np, anomalies, zero_division=0)  # avoid division by zero
+recall = recall_score(y_test_np, anomalies, zero_division=0)
+
+print(f"Accuracy:  {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall:    {recall:.4f}")

@@ -1,0 +1,195 @@
+6 Build image classification model using CNN on FOOD dataset.,
+
+code :- 
+
+
+# Install TensorFlow (if not already installed)
+
+# !pip install tensorflow --quiet
+
+# IMPORTS — each import is explained below
+
+import tensorflow as tf                                                            # Core TensorFlow library for building and training deep learning models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator                # For image loading, preprocessing & augmentation
+from tensorflow.keras.models import Sequential                                     # To build the model layer-by-layer
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout  # CNN and fully connected layers
+import matplotlib.pyplot as plt                                                    # For plotting accuracy/loss graphs and showing sample predictions
+import numpy as np                                                                 # For numerical operations and array manipulation
+import os                                                                          # For handling file paths and directories
+import random                                                                      # To randomly select images for predictions
+
+
+# Step 1: Define dataset paths 
+
+# base_dir: points to the folder where all 101 food image folders are stored
+# Each subfolder inside represents one food class.
+
+base_dir = r"C:\Users\HP\Downloads\food-101\food-101\images"
+
+
+# Step 2: Data preprocessing and augmentation
+
+# ImageDataGenerator automatically:
+# - Rescales pixel values from [0,255] → [0,1]
+# - Splits data into training and validation sets using 'validation_split'
+# - Can also apply augmentation (rotation, zoom, flip, etc.)
+
+datagen = ImageDataGenerator(
+    rescale=1./255,         # Normalize pixel values
+    validation_split=0.2    # 20% data used for validation
+)
+
+# --- Training data generator ---
+
+train_generator = datagen.flow_from_directory(
+    base_dir,                   # Folder with images organized in subdirectories
+    target_size=(128, 128),     # Resize all images to 128×128 pixels
+    batch_size=32,              # Process 32 images at a time
+    class_mode='categorical',   # Multi-class classification (101 classes)
+    subset='training'           # Use 80% of data for training
+)
+
+# --- Validation data generator ---
+
+val_generator = datagen.flow_from_directory(
+    base_dir,
+    target_size=(128, 128),
+    batch_size=32,
+    class_mode='categorical',
+    subset='validation'     # Use 20% of data for validation
+)
+
+
+# Step 3: Define CNN model architecture
+
+# CNN (Convolutional Neural Network) helps extract visual features like
+# edges, textures, and shapes from images.
+# Layers:
+#   Conv2D + ReLU: Detects patterns in images.
+#   MaxPooling2D: Reduces image size while keeping key features.
+#   Flatten: Converts 2D features → 1D vector.
+#   Dense: Fully connected layers for learning complex relationships.
+#   Dropout: Prevents overfitting by turning off some neurons randomly.
+#   Softmax: Outputs probability distribution over 101 classes.
+
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),  # 1st Conv layer
+    MaxPooling2D((2, 2)),
+
+    Conv2D(64, (3, 3), activation='relu'),  # 2nd Conv layer
+    MaxPooling2D((2, 2)),
+
+    Conv2D(128, (3, 3), activation='relu'),  # 3rd Conv layer
+    MaxPooling2D((2, 2)),
+
+    Flatten(),                # Convert 2D feature maps → 1D vector
+    Dense(256, activation='relu'),  # Fully connected layer
+    Dropout(0.5),             # Prevents overfitting
+    Dense(101, activation='softmax')  # Output layer: 101 food classes
+])
+
+
+# Step 4: Compile the model
+
+# Compilation defines how the model learns:
+# - Optimizer: Adam (efficient adaptive learning)
+# - Loss: categorical_crossentropy (multi-class classification)
+# - Metric: accuracy (to monitor performance)
+
+model.compile(
+    optimizer='adam',
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+
+# Step 5: Train the model
+
+# - model.fit() trains the model for a number of epochs.
+# - train_generator: provides training data
+# - validation_data: used to check model performance after each epoch
+# - epochs: number of complete passes over the Dataset
+
+history = model.fit(
+    train_generator,
+    validation_data=val_generator,
+    epochs=10
+)
+
+
+# Step 6: Evaluate model performance
+
+# model.evaluate() returns the loss and accuracy on validation data
+
+val_loss, val_acc = model.evaluate(val_generator)
+print(f"\n Validation Accuracy: {val_acc*100:.2f}%")
+
+
+# Step 7: Plot training and validation accuracy/loss
+
+# Plot graphs to visualize learning trends over epochs
+# Helps detect underfitting (both low) or overfitting (train high, val low)
+
+plt.figure(figsize=(12, 5))
+
+# Accuracy plot
+
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+
+# Loss plot
+
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
+
+
+# Step 8: Predict random validation images
+
+# model.predict() outputs probabilities for each class.
+# np.argmax() gives the index of the highest probability → predicted class.
+# The code shows 5 random predictions from the validation set.
+
+class_labels = list(train_generator.class_indices.keys())
+print("Total Classes:", len(class_labels))
+
+for i in range(5):
+    img, label = val_generator.next()         # Get a random batch
+    idx = random.randint(0, len(img) - 1)     # Choose one random image
+    prediction = model.predict(np.expand_dims(img[idx], axis=0))
+    predicted_class = class_labels[np.argmax(prediction)]  # Most probable class
+    
+    plt.imshow(img[idx])
+    plt.title(f"Predicted: {predicted_class}")
+    plt.axis('off')
+    plt.show()
+
+
+# THEORY SUMMARY :- 
+
+# CNN Architecture Summary:
+ Input → Conv2D → ReLU → Pooling → Conv2D → ReLU → Pooling → Flatten → Dense → Softmax
+
+# Important Formulas:
+ 1. Convolution: Z(i,j) = Σ_m Σ_n (Input(i+m, j+n) × Kernel(m,n)) + bias
+ 2. Activation (ReLU): f(z) = max(0, z)
+ 3. Softmax: σ(z_i) = e^(z_i) / Σ_j e^(z_j)
+ 4. Loss Function (Categorical Cross-Entropy):
+    L = -Σ(y_true * log(y_pred))
+
+# Model Summary:
+ - Extracts visual patterns via convolution filters.
+ - Reduces size & complexity via pooling.
+ - Fully connected layers classify food category.
+ - Softmax outputs probability across 101 food classes.
+

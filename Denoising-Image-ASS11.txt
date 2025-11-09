@@ -1,0 +1,159 @@
+11. Implement the concept of image denoising using autoencoders on MNIST
+data set .,
+
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Flatten, Reshape
+
+# ------------------------------------------------------------
+
+# 1️) WHAT IS AN AUTOENCODER?
+
+# An Autoencoder is an unsupervised neural network that learns to compress data (encode)
+# into a smaller representation (latent space) and then reconstruct (decode) it back.
+
+# Denoising Autoencoder:
+- A special type of Autoencoder that learns to remove noise from input data.
+- The model is trained on noisy inputs but tries to output the original clean data.
+
+# Working Principle:
+ Input (Noisy Image) → Encoder → Latent Representation → Decoder → Output (Clean Image)
+
+# Applications:
+# - Noise removal in images or audio
+# - Dimensionality reduction
+# - Feature learning
+# - Anomaly detection
+# ------------------------------------------------------------
+
+# 2️) LOAD AND PREPARE DATA
+
+data = pd.read_csv(r"E:\DL\Deep Learning Datasets\3 MNIST\mnist_784_csv.csv")
+print(data.head())
+
+# The CSV file contains 785 columns (784 pixels + 1 label 'class')
+# We'll use only pixel columns for autoencoder training.
+
+X = data.iloc[:, :-1].values / 255.0  # Normalize pixel values (0–255 → 0–1)
+X = X.reshape(-1, 28, 28, 1)          # Reshape each image to 28×28×1
+
+print("Shape of X:", X.shape)  # (70000, 28, 28, 1) for full MNIST
+
+
+# 3️) ADD NOISE TO IMAGES (for denoising autoencoder)
+
+# Add Gaussian noise to images to make training more robust.
+
+noise_factor = 0.5
+X_noisy = X + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=X.shape)
+X_noisy = np.clip(X_noisy, 0., 1.)  # Ensure pixel values stay in [0,1]
+
+
+# 4️) DEFINE AUTOENCODER ARCHITECTURE
+
+# Encoder compresses image → Decoder reconstructs image back.
+
+# Input Layer — shape same as image (28x28x1)
+input_img = Input(shape=(28, 28, 1))
+
+# -------------- Encoder --------------
+# Flatten converts 2D image → 1D vector (784)
+
+x = Flatten()(input_img)
+
+# Dense layers learn patterns (compression)
+
+x = Dense(128, activation='relu')(x)
+encoded = Dense(64, activation='relu')(x)  # Latent (compressed) representation
+
+# -------------- Decoder --------------
+# Expands latent features back to image size
+
+x = Dense(128, activation='relu')(encoded)
+x = Dense(28*28, activation='sigmoid')(x)  # Sigmoid → output pixels between 0 and 1
+decoded = Reshape((28, 28, 1))(x)          # Reshape 1D vector → 28x28x1 image
+
+
+# 5️) BUILD AND COMPILE AUTOENCODER
+
+# Model takes noisy image as input and outputs reconstructed (clean) image.
+autoencoder = Model(input_img, decoded)
+autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+# Loss function:
+# Binary Crossentropy = measures reconstruction difference between input and output.
+# Optimizer:
+# Adam = adaptive optimizer that adjusts learning rate automatically.
+
+autoencoder.summary()
+
+
+# 6️) TRAIN AUTOENCODER
+
+# Train on noisy images (X_noisy) as input and clean images (X) as target.
+# The model learns to map noisy → clean.
+autoencoder.fit(
+    X_noisy, X,
+    epochs=5,
+    batch_size=32,
+    shuffle=True,
+    validation_split=0.2
+)
+
+
+# 7️) DENOISE TEST IMAGES (Reconstruction)
+
+# Predict clean images from noisy inputs
+
+denoised_images = autoencoder.predict(X_noisy)
+
+
+# 8️) VISUALIZE RESULTS (Noisy vs Denoised)
+
+n = 10  # number of images to show
+plt.figure(figsize=(20, 4))
+for i in range(n):
+    # Top row → noisy images
+    ax = plt.subplot(2, n, i + 1)
+    plt.imshow(X_noisy[i].reshape(28, 28), cmap='gray')
+    plt.title("Noisy")
+    plt.axis('off')
+
+    # Bottom row → denoised (reconstructed) images
+    ax = plt.subplot(2, n, i + 1 + n)
+    plt.imshow(denoised_images[i].reshape(28, 28), cmap='gray')
+    plt.title("Denoised")
+    plt.axis('off')
+plt.show()
+
+
+# THEORY SUMMARY :-
+
+# Autoencoder = Encoder + Decoder
+
+# Encoder:
+   - Learns to compress data and keep only important information.
+   - Maps input x → hidden representation h.
+
+# Decoder:
+   - Learns to reconstruct the original input from h.
+   - Maps h → reconstructed x'.
+
+# Denoising Autoencoder:
+   - Input: Noisy image
+   - Output: Clean image
+  - Loss: Measures difference between clean and reconstructed images.
+
+# Key Formula:
+   h = f(W1 * x + b1)         (Encoding)
+   x' = g(W2 * h + b2)        (Decoding)
+   L = ||x - x'||² or BCE(x, x')  (Reconstruction Loss)
+
+# In simple words:
+  The model learns to "ignore" noise and recover original data patterns.
+

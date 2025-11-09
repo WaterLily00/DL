@@ -1,0 +1,159 @@
+13. Implement image classification using transfer learning on animal dataset
+
+#Imports
+import os                      # file / path utilities
+import random                  # choose random test images for prediction demo
+import numpy as np             # numeric arrays
+import pandas as pd            # read labels.csv
+import matplotlib.pyplot as plt         # plotting
+import tensorflow as tf                  # core TF (and Keras API)
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten, Dropout
+
+ 
+# 1) Paths — change to your dataset location
+
+base_dir = r"C:\Users\HP\Downloads\datasets_dog_breed_classification"
+train_dir = os.path.join(base_dir, "train")   # folder with training images
+test_dir  = os.path.join(base_dir, "test")    # folder with test images
+labels_path = os.path.join(base_dir, "labels.csv")  # CSV with columns ['id','breed']
+
+
+# 2) Load and fix labels CSV
+
+df = pd.read_csv(labels_path)   # expects columns: id, breed
+# If filenames in CSV don't have extension, add .jpg
+if not df['id'].iloc[0].lower().endswith('.jpg'):
+    df['id'] = df['id'].astype(str) + '.jpg'
+
+print("Sample rows from labels.csv:")
+print(df.head())
+
+# Optional: quick existence check for first sample
+sample_path = os.path.join(train_dir, df['id'].iloc[0])
+print("\nSample path check:", sample_path)
+print("Exists?", os.path.exists(sample_path))
+
+
+# 3) Data generators (augmentation & split)
+
+# ImageDataGenerator: rescales pixels and applies augmentation for training
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    validation_split=0.2,       # use 20% of dataframe for validation
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True
+)
+
+# flow_from_dataframe reads images using filenames in the dataframe.
+train_generator = train_datagen.flow_from_dataframe(
+    dataframe=df,
+    directory=train_dir,
+    x_col='id',
+    y_col='breed',
+    target_size=(224, 224),
+    batch_size=32,
+    subset='training',
+    class_mode='categorical',
+    shuffle=True
+)
+
+val_generator = train_datagen.flow_from_dataframe(
+    dataframe=df,
+    directory=train_dir,
+    x_col='id',
+    y_col='breed',
+    target_size=(224, 224),
+    batch_size=32,
+    subset='validation',
+    class_mode='categorical',
+    shuffle=True
+)
+
+print(f"\n Found {train_generator.samples} training and {val_generator.samples} validation images.")
+num_classes = len(train_generator.class_indices)
+print("Number of classes (breeds):", num_classes)
+
+
+# 4) Load pretrained VGG16 (convolutional base)
+
+base_model = VGG16(weights='imagenet', include_top=False, input_shape=(224,224,3))
+# Freeze the convolutional base so we train only the new top layers initially
+for layer in base_model.layers:
+    layer.trainable = False
+
+
+# 5) Build top model (classifier head)
+
+model = Sequential([
+    base_model,                   # pretrained conv base
+    Flatten(),                    # flatten feature maps
+    Dense(256, activation='relu'),
+    Dropout(0.5),                 # regularization to reduce overfitting
+    Dense(num_classes, activation='softmax')  # final softmax for multi-class
+])
+
+
+# 6) Compile model
+
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.summary()  # optional: prints architecture + params
+
+
+# 7) Train model
+
+history = model.fit(
+    train_generator,
+    epochs=10,
+    validation_data=val_generator
+)
+
+
+# 8) Evaluate on validation set
+
+val_loss, val_acc = model.evaluate(val_generator)
+print(f"\n Validation Accuracy: {val_acc*100:.2f}%")
+
+
+# 9) Plot training history
+
+plt.figure(figsize=(12,5))
+plt.subplot(1,2,1)
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epochs'); plt.ylabel('Accuracy'); plt.legend()
+
+plt.subplot(1,2,2)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss')
+plt.xlabel('Epochs'); plt.ylabel('Loss'); plt.legend()
+plt.show()
+
+
+# 10) Random predictions on test images (visual demo)
+
+labels = list(train_generator.class_indices.keys())
+test_images = os.listdir(test_dir)
+
+# Show 3 random predictions
+
+for i in range(3):
+    random_img = random.choice(test_images)
+    img_path = os.path.join(test_dir, random_img)
+    img = tf.keras.utils.load_img(img_path, target_size=(224,224))
+    img_array = tf.keras.utils.img_to_array(img) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
+    prediction = model.predict(img_array)
+    pred_label = labels[np.argmax(prediction)]
+    plt.imshow(img)
+    plt.title(f"Predicted: {pred_label}")
+    plt.axis('off')
+    plt.show()

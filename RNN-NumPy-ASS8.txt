@@ -1,0 +1,254 @@
+8. Build Recurrent Neural Network by using the numpy library .,
+
+import numpy as np
+
+# Step 1: Prepare text dataset
+
+text = "I Love AI"                     # sample text input
+chars = sorted(list(set(text)))        # unique characters
+vocab_size = len(chars)                # number of unique characters
+
+# Create mapping from characters ↔ indices
+char_to_idx = {ch: i for i, ch in enumerate(chars)}  # char → index
+idx_to_char = {i: ch for ch, i in char_to_idx.items()}  # index → char
+
+# Convert text into numerical sequence
+data = [char_to_idx[ch] for ch in text]
+
+print("Characters:", chars)
+print("Character-to-Index Mapping:", char_to_idx)
+
+
+# Step 2: Initialize RNN parameters
+
+np.random.seed(42)        # for reproducibility
+
+input_size = vocab_size   # one-hot size = number of unique chars
+hidden_size = 16          # number of neurons in hidden layer
+output_size = vocab_size  # same as input for next-char prediction
+lr = 0.1                  # learning rate
+epochs = 5000             # number of training iterations
+clip_value = 5.0          # to clip gradients and avoid exploding values
+
+# Weight matrices
+Wxh = np.random.randn(hidden_size, input_size) * 0.01   # input → hidden
+Whh = np.random.randn(hidden_size, hidden_size) * 0.01  # hidden → hidden
+Why = np.random.randn(output_size, hidden_size) * 0.01  # hidden → output
+
+# Bias vectors
+bh = np.zeros((hidden_size, 1))
+by = np.zeros((output_size, 1))
+
+
+# Step 3: Helper functions
+
+
+def softmax(x):
+    """Softmax activation — converts raw scores to probabilities."""
+    e = np.exp(x - np.max(x, axis=0, keepdims=True))  # stable softmax
+    return e / np.sum(e, axis=0, keepdims=True)
+
+def one_hot(idx, size=vocab_size):
+    """Creates one-hot vector for a given index."""
+    vec = np.zeros((size, 1))
+    vec[idx] = 1
+    return vec
+
+
+# Step 4: Training loop (Forward + Backward)
+-
+# For each epoch:
+# 1. Iterate through the text sequence.
+# 2. Predict next character.
+# 3. Compute loss and gradients.
+# 4. Update weights using SGD.
+# ------------------------------------------------------------
+
+for epoch in range(1, epochs + 1):
+    h_prev = np.zeros((hidden_size, 1))   # initial hidden state
+    total_loss = 0.0
+
+    for t in range(len(data) - 1):
+
+        # ---------- Forward Pass ----------
+
+        x = one_hot(data[t])              # input vector for current char
+        target = data[t + 1]              # next character (label)
+
+        # Hidden state computation: h = tanh(Wxh*x + Whh*h_prev + bh)
+
+        h = np.tanh(Wxh @ x + Whh @ h_prev + bh)
+
+        # Output computation: y = Why*h + by
+
+        y = Why @ h + by
+
+        # Apply softmax to get probability distribution
+
+        p = softmax(y)
+
+        # Cross-entropy loss: -log(probability of correct target)
+
+        loss = -np.log(p[target, 0] + 1e-9)
+        total_loss += loss
+
+        # ---------- Backward Pass (BPTT - 1 step) ----------
+
+        # Compute gradients of loss w.r.t parameters
+
+        dy = p.copy()
+        dy[target, 0] -= 1              # derivative of cross-entropy loss
+
+        # Gradients for each weight and bias
+        dWhy = dy @ h.T
+        dby = dy
+        dh = Why.T @ dy
+        dh_raw = (1 - h ** 2) * dh      # derivative of tanh
+        dWxh = dh_raw @ x.T
+        dWhh = dh_raw @ h_prev.T
+        dbh = dh_raw
+
+        # ---------- Gradient Clipping ----------
+
+        # Prevents very large updates (exploding gradients)
+        for grad in (dWxh, dWhh, dWhy, dbh, dby):
+            np.clip(grad, -clip_value, clip_value, out=grad)
+
+        # ---------- Update weights (SGD) ----------
+
+        Wxh -= lr * dWxh
+        Whh -= lr * dWhh
+        Why -= lr * dWhy
+        bh  -= lr * dbh
+        by  -= lr * dby
+
+        # Carry hidden state to next time-step
+
+        h_prev = h
+
+    # Print progress every 1000 epochs
+
+    if epoch % 1000 == 0 or epoch == 1 or epoch == epochs:
+        print(f"Epoch {epoch:5d} | Loss: {total_loss:.4f}")
+
+print("\n Training complete!")
+
+
+# Step 5: Prediction (Text Generation)
+
+# Once trained, we can generate new text by:
+# 1. Starting with a seed character.
+# 2. Feeding it through the model to predict next char.
+# 3. Sampling from predicted probabilities.
+# 4. Feeding the output back as next input (auto-regressive loop).
+# ------------------------------------------------------------
+
+def predict_text(seed_char, length=20):
+    """Generates new text sequence from a starting character."""
+    h_prev = np.zeros((hidden_size, 1))
+    if seed_char not in char_to_idx:
+        raise ValueError("Seed character not in vocabulary!")
+
+    idx = char_to_idx[seed_char]
+    generated = seed_char
+
+    for _ in range(length):
+        x = one_hot(idx)                                # current input
+        h_prev = np.tanh(Wxh @ x + Whh @ h_prev + bh)
+        y = Why @ h_prev + by
+        p = softmax(y).ravel()                          # probability distribution
+        idx = np.random.choice(range(vocab_size), p=p)  # sample next char
+        generated += idx_to_char[idx]                   # append char
+
+    return generated
+
+-
+# Step 6: Generate new text samples
+
+print("\n Generated text (seed='I'):")
+print(predict_text("I", 30))
+
+print("\n Generated text (seed=' '):")
+print(predict_text(" ", 30))
+
+
+# THEORY SUMMARY :-
+
+
+Definition:
+
+A Recurrent Neural Network (RNN) is a type of neural network designed to handle
+sequential data (like text, speech, or time series).
+It remembers previous inputs through a hidden state, 
+making it suitable for predicting or generating sequences.
+
+---
+
+1. Architecture:
+An RNN has three main layers:
+
+* Input Layer: Takes one element (word/character) at each time step.
+* Hidden Layer: Keeps a **memory** of past inputs using recurrent connections (feedback loops).
+* Output Layer: Produces an output (like next word or character prediction).
+
+Each neuron passes information not only forward but also back to itself — creating a “loop” that allows it to remember previous steps.
+
+---
+
+2. Working Principle:
+At each time step *t*:
+
+* Input: ( x_t )
+* Hidden state: ( h_t = \tanh(W_{xh}x_t + W_{hh}h_{t-1} + b_h) )
+* Output: ( y_t = W_{hy}h_t + b_y )
+
+Where:
+
+* ( h_{t-1} ): previous hidden state (memory)
+* ( W_{xh}, W_{hh}, W_{hy} ): weight matrices
+* ( \tanh ): activation function (adds non-linearity)
+
+---
+
+3. Key Idea:
+Unlike feedforward networks, RNNs **share weights** across time steps and can
+ learn patterns that depend on previous inputs (context).
+
+---
+
+4. Applications:
+
+* Text generation and sentiment analysis
+* Machine translation
+* Speech recognition
+* Time-series forecasting
+
+---
+
+In Simple Words:
+RNNs “remember” what happened before and use that memory to decide what happens next —
+ just like how we read a sentence word by word while keeping context in mind.
+
+
+
+
+# RNN Concept:
+ - RNNs process sequences by maintaining a hidden state 'h' that carries
+   information from previous time steps.
+
+# Main Equations:
+   h_t = tanh(Wxh * x_t + Whh * h_(t-1) + bh)
+   y_t = Why * h_t + by
+   p_t = softmax(y_t)
+
+# Loss:   L = -Σ(y_true * log(p_pred))
+
+# Backpropagation:
+ - Uses the chain rule through time (BPTT) to update weights.
+ - Gradient clipping avoids numerical instability.
+
+# In simple words:
+ - The model learns patterns in characters.
+ - Given a seed character, it can generate new text character by character.
+
+

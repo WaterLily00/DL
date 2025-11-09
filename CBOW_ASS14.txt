@@ -1,0 +1,201 @@
+14. Implement the Continuous Bag of Words (CBOW) Model .,
+
+code :- 
+
+# -------------------------------
+# Simple CBOW-style model (keras) on a tiny text corpus
+# - We build training pairs where the network takes the CONTEXT (neighbors)
+#   and predicts the TARGET (center word).
+# - This is similar to Continuous Bag-of-Words (CBOW). Your original
+#   code used context windows of size 2 on each side (total 4 context words).
+# - The script tokenizes text, builds context-target pairs, trains a small NN
+#   with an Embedding layer, then shows embeddings via PCA and makes predictions.
+# -------------------------------
+
+import re
+import random
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, Lambda, Dense
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+import seaborn as sns
+
+# reproducibility
+np.random.seed(42)
+tf.random.set_seed(42)
+random.seed(42)
+
+
+# 0) Raw text and simple cleaning
+
+data = """The Skip-Gram model is another approach used in natural language processing to create word embeddings. 
+Unlike the Continuous Bag of Words, Skip-Gram predicts surrounding words given a target word, 
+allowing it to capture more contextual relationships. These embeddings can then be applied to various NLP tasks such 
+as sentiment analysis, machine translation, and information retrieval."""
+
+# split sentences by '.' and clean
+
+sentences = [s.strip() for s in data.split('.') if s.strip()]
+
+clean_sent = []
+for sentence in sentences:
+    # remove non-alphanumeric characters, keep spaces
+    s = re.sub('[^A-Za-z0-9 ]+', ' ', sentence)
+    # remove isolated single letters (optional)
+    s = re.sub(r'(?:^| )\w(?:$| )', ' ', s).strip()
+    s = s.lower()
+    if s:
+        clean_sent.append(s)
+
+
+# 1) Tokenize (word -> index) and keep mappings
+
+tokenizer = Tokenizer(oov_token=None)   # no OOV token for tiny example
+tokenizer.fit_on_texts(clean_sent)
+sequences = tokenizer.texts_to_sequences(clean_sent)
+word_to_index = tokenizer.word_index      # dict: word -> index (1-based)
+index_to_word = {i: w for w, i in word_to_index.items()}
+
+vocab_size = len(word_to_index) + 1       # +1 for padding index 0
+print("Vocab size:", vocab_size)
+print("Word to index (sample):", dict(list(word_to_index.items())[:10]))
+
+
+# 2) Build context-target pairs (CBOW style)
+
+context_size = 2   # number of words on each side
+contexts = []
+targets = []
+
+for seq in sequences:
+    # only consider positions that have a full context on both sides
+    for i in range(context_size, len(seq) - context_size):
+        target = seq[i]
+        context = seq[i - context_size:i] + seq[i+1:i+1+context_size]  # left + right
+        if len(context) == 2*context_size:
+            contexts.append(context)
+            targets.append(target)
+
+contexts = np.array(contexts)
+targets = np.array(targets)
+print("Number of training pairs:", len(targets))
+print("Example pair (context indices -> target index):", contexts[0], "->", targets[0])
+
+
+# 3) Prepare input for model (pad if needed)
+#    In this script contexts already fixed-length (2*context_size), so padding not required.
+# contexts shape: (num_samples, 2*context_size)
+
+input_length = contexts.shape[1]
+
+
+# 4) Build model
+# - Embedding layer maps each context word index to a vector.
+# - Lambda reduces (mean) the embeddings across context words (CBOW idea).
+# - Dense layers predict the target word (softmax over vocab).
+
+emb_size = 10
+
+model = Sequential([
+    Embedding(input_dim=vocab_size, output_dim=emb_size, input_length=input_length, name="embedding"),
+    Lambda(lambda x: tf.reduce_mean(x, axis=1), name="mean_pool"),  # average context embeddings
+    Dense(128, activation='relu'),
+    Dense(vocab_size, activation='softmax')   # predict one-of-vocab target index
+])
+
+model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.summary()
+
+
+# 5) Train the model
+-
+# tiny dataset => keep epochs moderate
+
+history = model.fit(contexts, targets, epochs=200, batch_size=8, verbose=0)
+
+# plot loss/accuracy quickly
+plt.figure(figsize=(8,3))
+plt.subplot(1,2,1)
+plt.plot(history.history['loss']); plt.title('Loss'); plt.xlabel('epoch')
+plt.subplot(1,2,2)
+plt.plot(history.history['accuracy']); plt.title('Accuracy'); plt.xlabel('epoch')
+plt.tight_layout(); plt.show()
+
+
+# 6) Extract embeddings and visualize (PCA)
+
+
+embeddings = model.get_layer("embedding").get_weights()[0]  # shape (vocab_size, emb_size)
+
+# ignore padding row 0 for visualization
+
+emb_vectors = embeddings[1:]   # shape (vocab_size-1, emb_size)
+words = [index_to_word[i] for i in range(1, vocab_size)]
+
+pca = PCA(n_components=2)
+reduced = pca.fit_transform(emb_vectors)
+
+plt.figure(figsize=(8,6))
+sns.scatterplot(reduced[:,0], reduced[:,1])
+for i, w in enumerate(words):
+    plt.text(reduced[i,0]+0.01, reduced[i,1]+0.01, w, fontsize=9)
+plt.title("Word embeddings (PCA 2D)")
+plt.show()
+
+
+# 7) How to make predictions:
+# - Given a context (list of words), map to indices, pad/truncate to input_length,
+#   then call model.predict() to get a distribution over target words.
+
+def predict_from_context(context_words):
+    """
+    context_words: list of words (length should be 2*context_size ideally).
+    Returns top-3 predicted words with probabilities.
+    """
+    # map words -> indices using tokenizer mapping; unknown words map to 0 (padding)
+
+    idxs = [word_to_index.get(w, 0) for w in context_words]
+
+    # if shorter, pad left/right to required length (here pad with 0)
+
+    if len(idxs) < input_length:
+        idxs = idxs + [0] * (input_length - len(idxs))
+    else:
+        idxs = idxs[:input_length]
+    x = np.array([idxs])
+    preds = model.predict(x, verbose=0)[0]
+    top3 = preds.argsort()[-3:][::-1]
+    return [(index_to_word.get(i, "<PAD>"), preds[i]) for i in top3]
+
+# Example: use a context from the original sentences
+
+example_context = ["skip", "gram", "predicts", "surrounding"]  # left2 left1 right1 right2
+print("Context words:", example_context)
+print("Top predictions:", predict_from_context(example_context))
+
+# Another example: a short phrase (unknown words will map to 0)
+
+example_context2 = ["natural","language","processing","technique"]
+print("Top predictions:", predict_from_context(example_context2))
+
+
+# SHORT THEORY :- 
+
+# - CBOW (Continuous Bag of Words) idea:
+     The model takes context words (surrounding words) as input and predicts the center (target) word.
+# - Architecture:
+   Embedding -> (mean pooling over context) -> Dense -> Softmax over vocabulary.
+
+# - Training objective:
+   Maximize probability of correct target given its context (equivalently minimize cross-entropy).
+   After training, the embedding matrix contains distributed vector representations (word embeddings).
+   These embeddings capture semantic/ syntactic similarity (especially with larger corpora).
+
+# Notes:
+ - With a very small corpus (this example), learned embeddings are toy-level.
+- For meaningful embeddings use large corpora and tuned hyperparameters (skip-gram or CBOW with negative sampling).
+

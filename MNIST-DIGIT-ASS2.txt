@@ -1,0 +1,280 @@
+2 Implement Feedforward neural networks with Keras and TensorFlow MNIST
+Digit dataset ., 
+
+code :- 
+
+
+import zipfile
+
+# -------------------------
+# 0) Unzip dataset (if needed)
+# -------------------------
+zip_path = "/content/MNIST-20221031T095906Z-001.zip"
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall("/content/MNIST")
+
+
+# -------------------------
+# 1) Imports
+# -------------------------
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Keras / TensorFlow high-level API imports
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.utils import to_categorical
+
+# For splitting into train/test
+from sklearn.model_selection import train_test_split
+
+
+# -------------------------
+# 2) Load data (CSV provided in zip)
+# -------------------------
+data = pd.read_csv("/content/MNIST/MNIST/mnist_784_csv.csv")
+data.head()   # quick peek (optional)
+
+
+# -------------------------
+# 3) Separate features and labels
+# - X: pixel intensities (784 columns)
+# - Y: class label (0-9)
+# -------------------------
+X = data.drop(columns=['class']).values   # shape: (n_samples, 784)
+Y = data['class'].values                  # shape: (n_samples,)
+
+
+# -------------------------
+# 4) Inspect shapes (optional prints)
+# -------------------------
+print("X shape:", X.shape)
+print("Y shape:", Y.shape)
+
+
+# -------------------------
+# 5) One-hot encode labels for categorical crossentropy
+#    to_categorical -> converts integer labels to one-hot vectors
+# -------------------------
+Y = to_categorical(Y, num_classes=10)   # shape: (n_samples, 10)
+
+
+# -------------------------
+# 6) Train / Test split
+# - using 20% of data for test
+# -------------------------
+x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+
+print(x_train.shape)
+print(y_train.shape)
+print(x_test.shape)
+print(y_test.shape)
+
+
+# -------------------------
+# 7) Display a sample image (visual sanity check)
+# - each image is 28x28 flattened to 784
+# - reshape back to (28, 28) for display
+# -------------------------
+sample_image = x_train[5].reshape(28, 28)
+digit_label = np.argmax(y_train[5])    # get actual digit from one-hot vector
+
+plt.matshow(sample_image, cmap='gray')
+plt.title(f"Label: {digit_label}")
+plt.axis('off')
+plt.show()
+
+
+# -------------------------
+# 8) Display first 10 training images in a row
+# -------------------------
+plt.figure(figsize=(15, 2))
+for i in range(10):
+    sample_image = x_train[i].reshape(28, 28)
+    digit_label = np.argmax(y_train[i])
+    plt.subplot(1, 10, i + 1)
+    plt.imshow(sample_image, cmap='gray', vmin=0, vmax=255)
+    plt.title(f"{digit_label}")
+    plt.axis('off')
+plt.show()
+
+
+# -------------------------
+# 9) Build Feedforward Neural Network (MLP) with Keras
+# - Flatten layer converts 1D input (784) to the network input
+# - Dense layers are fully-connected layers
+# - ReLU activations for hidden layers, Softmax for output
+# -------------------------
+model = Sequential([
+    Flatten(input_shape=(784,)),      # convert flat vector into model input
+    Dense(128, activation='relu'),   # hidden layer 1
+    Dense(64, activation='relu'),    # hidden layer 2
+    Dense(10, activation='softmax')  # output: 10 neurons for 10 classes
+])
+
+
+# -------------------------
+# 10) Compile model
+# - optimizer: Adam (adaptive learning rates)
+# - loss: categorical_crossentropy (for one-hot labels)
+# - metrics: accuracy
+# -------------------------
+model.compile(optimizer='adam',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+
+# -------------------------
+# 11) Train model
+# - epochs: number of passes through data
+# - batch_size: samples per gradient update
+# - validation_split: fraction of training data used for validation
+# -------------------------
+history = model.fit(x_train, y_train,
+                    epochs=5,
+                    batch_size=32,
+                    validation_split=0.2,
+                    verbose=1)
+
+
+# -------------------------
+# 12) Evaluate on held-out test set
+# - returns test loss and test accuracy
+# -------------------------
+test_loss, test_acc = model.evaluate(x_test, y_test, verbose=1)
+print("Test loss:", test_loss)
+print("Test accuracy:", test_acc)
+
+
+# -------------------------
+# 13) Plot train/validation accuracy curve
+# - useful to detect underfitting/overfitting
+# -------------------------
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
+
+
+# -------------------------
+# 14) Re-display first 10 images with labels (again)
+# -------------------------
+plt.figure(figsize=(15, 2))
+for i in range(10):
+    plt.subplot(1, 10, i + 1)
+    sample_image = x_train[i].reshape(28, 28)
+    digit_label = np.argmax(y_train[i])
+    plt.imshow(sample_image, cmap='gray', vmin=0, vmax=255)
+    plt.title(digit_label)
+    plt.axis('off')
+plt.show()
+
+
+Theory :- 
+
+
+Feedforward Neural Network using Keras & TensorFlow (MNIST Dataset) :-
+
+Definition:
+A Feedforward Neural Network (FNN) is the simplest type of artificial neural network where information 
+moves in one direction — from input to output.
+There are no loops or backward connections.
+
+Working (Formula):
+
+For each neuron:
+
+Z=W⋅X+b
+A=f(Z)
+
+Where:  X = input vector
+        W = weights
+        b = bias
+        f(Z) = activation function (like ReLU or Sigmoid)
+        A = output (activation) of the neuron
+
+Each layer's output becomes the next layer's input .
+
+
+1. MNIST Dataset
+
+* MNIST contains handwritten digits from 0 to 9.
+* Each image is 28x28 pixels = 784 features.
+* Labels are digits (0–9).
+* Data is converted into one-hot encoded form for training.
+
+---
+
+2. Data Preprocessing
+
+* Split dataset into training and testing sets (usually 80% train, 20% test).
+* Convert labels to one-hot vectors using `to_categorical()`.
+* Normalize pixel values (divide by 255) so that all values are between 0 and 1.
+* This helps the model train faster and more accurately.
+
+---
+
+3. Model Architecture
+
+* Input Layer: Takes 784 features (28x28 pixels flattened).
+* Hidden Layers: Two fully connected (Dense) layers with 128 and 64 neurons.
+* Output Layer: 10 neurons (for digits 0-9) with softmax activation.
+* Model structure: 784 → 128 → 64 → 10.
+
+---
+
+4. Activation Functions
+
+* ReLU (Rectified Linear Unit): Speeds up learning by keeping only positive values.
+* Softmax: Converts outputs into probabilities for each class (digit).
+
+---
+
+5. Loss Function, Optimizer, and Metrics
+
+* Loss Function: `categorical_crossentropy` - measures the difference between predicted and actual labels.
+* Optimizer: `Adam` - automatically adjusts learning rates for better results.
+* Metric: `accuracy` - shows how well the model predicts correctly.
+
+---
+
+6. Training Process
+
+* Epochs: One complete pass through all training data.
+* Batch Size: Number of samples trained at once (e.g., 32).
+* Validation Split: Part of training data used to check model performance during training.
+* Model learns by updating weights to minimize loss.
+
+---
+
+7. Evaluation
+
+* After training, test the model on unseen data (x_test, y_test).
+* The model gives accuracy (usually around 97–98% for MNIST).
+* Plotting training and validation accuracy helps check learning progress.
+
+---
+
+8. Visualization
+
+* We can display sample images and their predicted labels using `matplotlib`.
+* Helps confirm the dataset and predictions look correct.
+
+---
+
+9. Improvements
+
+* Normalize data (X = X / 255.0).
+* Use **Dropout layers** to reduce overfitting.
+* Add **EarlyStopping** to stop training when validation accuracy stops improving.
+* For better accuracy (>99%), use **CNN (Convolutional Neural Network)**.
+
+---
+
+In Simple Words:
+The model looks at many handwritten digits, learns patterns in pixel values, and then predicts which number (0–9) is shown in a new image.
+
+

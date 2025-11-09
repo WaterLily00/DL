@@ -1,0 +1,143 @@
+9 Implement simple autoencoder to reconstruct MNIST digits. Add sparsity
+constraint on the encoded representations .,
+
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras import regularizers
+
+# ------------------------------------------------------------
+# 🔹 WHAT IS AN AUTOENCODER?
+
+# An Autoencoder is a type of neural network used for unsupervised learning.
+# It learns to encode (compress) the input data into a smaller representation,
+# called a "latent space", and then decode it back to reconstruct the original input.
+#
+# Architecture:
+#   Input → Encoder → Latent Space → Decoder → Output
+#
+# The goal is to minimize the difference between the input and the output.
+# This helps the model learn the most important features of the data.
+#
+# Applications:
+# - Dimensionality reduction
+# - Image denoising
+# - Anomaly detection
+# - Data compression
+# ------------------------------------------------------------
+
+# Step 1: Load and prepare the MNIST dataset
+
+(x_train, _), (x_test, _) = mnist.load_data()  # We only use the images, not labels
+
+x_train = x_train.astype("float32") / 255.0    # Normalize pixel values (0–255 → 0–1)
+x_test = x_test.astype("float32") / 255.0
+
+# Flatten 28x28 images → 784-length vectors (since Dense layers need 1D input)
+x_train = x_train.reshape((len(x_train), -1))
+x_test = x_test.reshape((len(x_test), -1))
+
+print("Training data shape:", x_train.shape)
+print("Testing data shape:", x_test.shape)
+
+
+# Step 2: Build the Autoencoder Architecture
+
+
+# Input layer (784 neurons for 28x28 pixels)
+
+input_img = Input(shape=(784,))
+
+# ------------------ Encoder ------------------
+# Compress input into smaller feature representations
+# L1 regularizer adds sparsity (forces some neurons to be inactive)
+
+encoded = Dense(128, activation="relu",
+                activity_regularizer=regularizers.l1(1e-5))(input_img)
+encoded = Dense(64, activation="relu")(encoded)
+latent = Dense(32, activation="sigmoid")(encoded)  # Latent space (compressed features)
+
+# ------------------- Decoder -------------------------------
+# Reconstruct image back from compressed latent space
+
+decoded = Dense(64, activation="relu")(latent)
+decoded = Dense(128, activation="relu")(decoded)
+output_img = Dense(784, activation="sigmoid")(decoded)   # Output image (same size as input)
+
+# Combine encoder + decoder into one Autoencoder model
+
+autoencoder = Model(input_img, output_img)
+
+
+# Step 3: Compile the model
+
+# Loss: Binary crossentropy — measures reconstruction difference
+# Optimizer: Adam — adaptive gradient-based optimizer
+autoencoder.compile(optimizer="adam", loss="binary_crossentropy")
+
+
+# Step 4: Train the Autoencoder
+
+# The model tries to reconstruct x_train from itself.
+# The goal is to learn compressed representations that preserve key information.
+history = autoencoder.fit(
+    x_train, x_train,
+    epochs=20,
+    batch_size=256,
+    shuffle=True,
+    validation_data=(x_test, x_test)
+)
+
+
+# Step 5: Test the Autoencoder (Reconstruction)
+
+# We use trained model to reconstruct test images
+
+decoded_imgs = autoencoder.predict(x_test[:10])
+
+
+# Step 6: Visualize original vs reconstructed images
+
+n = 10  # show 10 images
+plt.figure(figsize=(20, 4))
+
+for i in range(n):
+    # ---- Original Image ----
+    ax = plt.subplot(2, n, i + 1)
+    plt.imshow(x_test[i].reshape(28, 28), cmap="gray")
+    plt.title("Original")
+    plt.axis("off")
+
+    # ---- Reconstructed Image ----
+    ax = plt.subplot(2, n, i + 1 + n)
+    plt.imshow(decoded_imgs[i].reshape(28, 28), cmap="gray")
+    plt.title("Reconstructed")
+    plt.axis("off")
+
+plt.show()
+
+
+# THEORY SUMMARY :- 
+
+# Autoencoder = Encoder + Decoder
+
+# Encoder:
+   Compresses input (784-dimension) → smaller latent space (32-dimension)
+   Learns only the most important features.
+
+# Decoder:
+   Reconstructs the image from the latent space back to original form.
+
+# Formulae:
+   h = f(W1 * x + b1)        # Encoder output (hidden layer)
+   x' = g(W2 * h + b2)       # Decoder reconstruction
+   Loss = ||x - x'||²  or binary_crossentropy(x, x')
+
+# If the network reconstructs inputs well → it has learned key features.
+
+# Simple words:
+ Autoencoders learn to “see” what matters most in data and recreate it
+ from a compressed form — like zipping and unzipping an image file.
+

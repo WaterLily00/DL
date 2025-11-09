@@ -1,0 +1,251 @@
+# CIFAR-10 — Feedforward Neural Network (FNN) with Keras/TensorFlow
+# Short & simple (exam version)
+
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras.datasets import cifar10
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Flatten, Dense
+from tensorflow.keras.utils import to_categorical
+import random
+
+# -------------------------
+# 1) Load CIFAR-10 dataset
+# - x_train: (50000, 32, 32, 3), x_test: (10000, 32, 32, 3)
+# - y labels are integers 0-9
+# -------------------------
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+
+# -------------------------
+# 2) Normalize pixels to [0,1]
+# - Convert to float and divide by 255 for faster, stable training
+# -------------------------
+x_train = x_train.astype('float32') / 255.0
+x_test  = x_test.astype('float32')  / 255.0
+
+# -------------------------
+# 3) One-hot encode labels for categorical_crossentropy
+# - Converts integer labels into 10-length vectors
+# -------------------------
+y_train = to_categorical(y_train, 10)
+y_test  = to_categorical(y_test, 10)
+
+# -------------------------
+# 4) Simple Feedforward model (flatten image -> dense layers -> softmax)
+# - Flatten converts (32,32,3) -> 3072 vector
+# - Dense layers learn patterns but do NOT use spatial structure as CNNs do
+# -------------------------
+model = Sequential([
+    Flatten(input_shape=(32, 32, 3)),   # image -> 1D vector
+    Dense(512, activation='relu'),      # hidden layer (512 neurons)
+    Dense(256, activation='relu'),      # hidden layer (256 neurons)
+    Dense(10, activation='softmax')     # output layer for 10 classes
+])
+
+# -------------------------
+# 5) Compile model
+# - optimizer: Adam (good default)
+# - loss: categorical_crossentropy for one-hot labels
+# - metric: accuracy
+# -------------------------
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.summary()   # optional: prints model architecture
+
+# -------------------------
+# 6) Train model
+# - epochs: number of full passes; batch_size: samples per update
+# - validation_split: hold-out fraction of training for validation
+# -------------------------
+history = model.fit(x_train, y_train, epochs=10, batch_size=128, validation_split=0.1, verbose=1)
+
+# -------------------------
+# 7) Evaluate on test set (held-out)
+# -------------------------
+loss, acc = model.evaluate(x_test, y_test, verbose=0)
+print(f"Test accuracy: {acc*100:.2f}%")
+
+# -------------------------
+# 8) Quick preview of predictions (10 random test images)
+# - Display images with predicted class labels
+# -------------------------
+classes = ['Airplane','Automobile','Bird','Cat','Deer','Dog','Frog','Horse','Ship','Truck']
+idxs = random.sample(range(len(x_test)), 10)
+preds = model.predict(x_test[idxs])
+
+plt.figure(figsize=(10,4))
+for i, idx in enumerate(idxs):
+    plt.subplot(2,5,i+1)
+    plt.imshow(x_test[idx])
+    plt.axis('off')
+    plt.title(classes[np.argmax(preds[i])])
+plt.tight_layout()
+plt.show()
+
+
+Below is a **copy-ready** answer you can paste into a `.py` or `.txt` file. It includes:
+
+1. The **block-wise commented CIFAR Feedforward (FNN) code** (ready to run).
+2. A **short simplified theory** you can copy below the code (suitable for a text file / exam notes).
+
+---
+
+```python
+# CIFAR-10 — Feedforward Neural Network (FNN) with Keras/TensorFlow
+# Short & simple (exam version)
+
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras.datasets import cifar10
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Flatten, Dense
+from tensorflow.keras.utils import to_categorical
+import random
+
+# -------------------------
+# 1) Load CIFAR-10 dataset
+# - x_train: (50000, 32, 32, 3), x_test: (10000, 32, 32, 3)
+# - y labels are integers 0-9
+# -------------------------
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+
+# -------------------------
+# 2) Normalize pixels to [0,1]
+# - Convert to float and divide by 255 for faster, stable training
+# -------------------------
+x_train = x_train.astype('float32') / 255.0
+x_test  = x_test.astype('float32')  / 255.0
+
+# -------------------------
+# 3) One-hot encode labels for categorical_crossentropy
+# - Converts integer labels into 10-length vectors
+# -------------------------
+y_train = to_categorical(y_train, 10)
+y_test  = to_categorical(y_test, 10)
+
+# -------------------------
+# 4) Simple Feedforward model (flatten image -> dense layers -> softmax)
+# - Flatten converts (32,32,3) -> 3072 vector
+# - Dense layers learn patterns but do NOT use spatial structure as CNNs do
+# -------------------------
+model = Sequential([
+    Flatten(input_shape=(32, 32, 3)),   # image -> 1D vector
+    Dense(512, activation='relu'),      # hidden layer (512 neurons)
+    Dense(256, activation='relu'),      # hidden layer (256 neurons)
+    Dense(10, activation='softmax')     # output layer for 10 classes
+])
+
+# -------------------------
+# 5) Compile model
+# - optimizer: Adam (good default)
+# - loss: categorical_crossentropy for one-hot labels
+# - metric: accuracy
+# -------------------------
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.summary()   # optional: prints model architecture
+
+# -------------------------
+# 6) Train model
+# - epochs: number of full passes; batch_size: samples per update
+# - validation_split: hold-out fraction of training for validation
+# -------------------------
+history = model.fit(x_train, y_train, epochs=10, batch_size=128, validation_split=0.1, verbose=1)
+
+# -------------------------
+# 7) Evaluate on test set (held-out)
+# -------------------------
+loss, acc = model.evaluate(x_test, y_test, verbose=0)
+print(f"Test accuracy: {acc*100:.2f}%")
+
+# -------------------------
+# 8) Quick preview of predictions (10 random test images)
+# - Display images with predicted class labels
+# -------------------------
+classes = ['Airplane','Automobile','Bird','Cat','Deer','Dog','Frog','Horse','Ship','Truck']
+idxs = random.sample(range(len(x_test)), 10)
+preds = model.predict(x_test[idxs])
+
+plt.figure(figsize=(10,4))
+for i, idx in enumerate(idxs):
+    plt.subplot(2,5,i+1)
+    plt.imshow(x_test[idx])
+    plt.axis('off')
+    plt.title(classes[np.argmax(preds[i])])
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+Simplified theory :- 
+
+## Feedforward Neural Network (FNN) on CIFAR-10 —  Theory ., 
+
+
+Definition:
+A Feedforward Neural Network (FNN) is the simplest type of artificial neural network where information 
+moves in one direction — from input to output.
+There are no loops or backward connections.
+
+Working (Formula):
+
+For each neuron:
+
+Z=W⋅X+b
+A=f(Z)
+
+Where:  X = input vector
+        W = weights
+        b = bias
+        f(Z) = activation function (like ReLU or Sigmoid)
+        A = output (activation) of the neuron
+
+Each layer's output becomes the next layer's input .
+
+
+1. Dataset:
+
+* CIFAR-10 has 60,000 color images (32×32×3) in 10 classes (e.g., airplane, car, bird).
+* Typical split: 50,000 train, 10,000 test.
+
+2. Preprocessing:
+
+* Normalize pixel values: divide by 255 → values in [0,1].
+* Convert labels to one-hot vectors for multi-class classification (`to_categorical`).
+* For FNN, images are flattened into a 1D vector (32×32×3 = 3072 features).
+
+3. Model (Feedforward / MLP):
+
+* Flatten layer: converts image to vector.
+* Dense layers: fully connected layers that learn feature combinations.
+* Output layer: Softmax with 10 neurons to output class probabilities.
+* Example architecture: 3072 → 512 (ReLU) → 256 (ReLU) → 10 (Softmax).
+
+4. Activation functions:
+
+* ReLU for hidden layers: f(z) = max(0, z).
+* Softmax for output: Softmax(z_i) = e^{z_i} / Σ_j e^{z_j}.
+
+5. Loss, optimizer, metric:
+
+* Loss: categorical_crossentropy (measures mismatch between predicted probs and true labels).
+* Optimizer: Adam (adaptive learning; good default).
+* Metric: accuracy.
+
+6. Training:
+
+* Epochs: full passes through dataset.
+* Batch size: samples per gradient update (trade-off speed vs stability).
+* Validation split: used to monitor model generalization during training.
+
+7. Limitations & notes:
+
+* FNN ignores spatial structure of images (pixel neighborhood). On CIFAR-10, FNNs perform much worse than CNNs.
+* For image tasks, prefer CNNs (use Conv2D + Pooling) which exploit local patterns and give higher accuracy.
+* Typical improvements: use data augmentation, convolutional layers, dropout, batch normalization, and more epochs.
+
+8. In short:
+
+* FNN flattens images and learns global patterns via dense layers. It can be used for quick demos, but CNNs are the right choice for real image classification tasks like CIFAR-10.
+
+---
+
