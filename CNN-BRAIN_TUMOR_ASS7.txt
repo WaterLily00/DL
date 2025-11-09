@@ -19,173 +19,57 @@ from tensorflow.keras.models import Sequential                                  
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout   # CNN and Dense layers
 
 
-# 2️ UNZIP THE DATASET .,
-
-# Unzips the dataset into a specified folder
-zip_path = "/home/student/Downloads/brain tumour.zip"
-with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-    zip_ref.extractall("/home/student/Downloads/brain_tumour")
+train_dir=r"C:\Users\sapar\Downloads\brain tumour\Training"
+test_dir=r"C:\Users\sapar\Downloads\brain tumour\Testing"
 
 
-# 3️ DEFINE DATASET PATHS .,
-
-train_dataset_path = '/home/student/Downloads/brain_tumour/Training'
-test_dataset_path  = '/home/student/Downloads/brain_tumour/Testing'
+train_datagen= ImageDataGenerator(rescale=1./255)
+test_datagen= ImageDataGenerator(rescale=1./255)
 
 
-# 4️ DEFINE BASIC PARAMETERS .,
-
-input_shape = (224, 224, 3)  # image size and color channels
-batch_size = 32              # images processed per step
-epochs = 10                  # number of training cycles
-
-
-# 5️ CREATE DATA GENERATORS .,
-
-# ImageDataGenerator automatically loads images, rescales pixel values, 
-# and groups them by folder names (class labels).
-
-train_datagen = ImageDataGenerator(rescale=1./255)
-
-# Training data generator
-
-train_generator = train_datagen.flow_from_directory(
-    train_dataset_path,
-    target_size=(input_shape[0], input_shape[1]),  # resize images
-    batch_size=batch_size,
-    class_mode='categorical'                      # since we have multiple tumor types
-)
-
-# Test data generator
-
-test_generator = train_datagen.flow_from_directory(
-    test_dataset_path,
-    target_size=(input_shape[0], input_shape[1]),
-    batch_size=batch_size,
-    class_mode='categorical'
-)
+train_gen=train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(150,150),
+    batch_size=(128),
+    class_mode='categorical')
 
 
-# 6️ BUILD CNN MODEL .,
-
-# CNN learns visual patterns like edges and textures from MRI images.
-
-model = Sequential()
-
-# First Convolutional + Pooling layer
-
-model.add(Conv2D(64, kernel_size=3, activation='relu', input_shape=input_shape))
-model.add(MaxPooling2D(2, 2))
-
-# Second Convolutional + Pooling layer
-
-model.add(Conv2D(32, kernel_size=3, activation='relu'))
-model.add(MaxPooling2D(2, 2))
-
-# Third Convolutional + Pooling layer
-
-model.add(Conv2D(16, kernel_size=3, activation='relu'))
-model.add(MaxPooling2D(2, 2))
-
-# Flatten converts 3D feature maps → 1D vector
-
-model.add(Flatten())
-
-# Fully connected (Dense) layers to combine features
-
-model.add(Dense(128, activation='relu'))
-model.add(Dense(256, activation='relu'))
-model.add(Dense(384, activation='relu'))
-model.add(Dense(256, activation='relu'))
-
-# Output layer — 4 neurons for 4 classes (Softmax → probabilities)
-
-model.add(Dense(4, activation='softmax'))
+test_gen=train_datagen.flow_from_directory(
+    test_dir,
+    target_size=(150,150),
+    batch_size=(128),
+    class_mode='categorical')
 
 
-# 7️ COMPILE MODEL .,
+model = Sequential([
+    Conv2D(32,(3,3),activation='relu',input_shape=(150,150,3)),
+    MaxPooling2D(2,2),
 
-# - Optimizer: 'adam' adjusts learning rate automatically
-# - Loss: 'categorical_crossentropy' for multi-class tasks
-# - Metrics: 'accuracy' tracks how well the model performs
+    Conv2D(64,(3,3),activation='relu'),
+    MaxPooling2D(2,2),
 
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    Conv2D(128,(3,3),activation='relu'),
+    MaxPooling2D(2,2),
 
-# 8️ TRAIN THE MODEL .,
-
-# model.fit() runs the training process
-# Each epoch → one complete pass through training data
-
-H = model.fit(train_generator, epochs=4, validation_data=test_generator)
-
-
-# 9️ DISPLAY CLASS LABELS .,
-
-# Lists all tumor class names from the training folder
-
-labels = os.listdir(train_dataset_path)
-print("Class Labels:", labels)
-
-# 10 RANDOM IMAGE TESTING FUNCTION .,
-
-# This function picks a random image from any subfolder for testing
-
-def get_random_paths(path):
-    imgs = []
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            if file.endswith('.jpg'):
-                imgs.append(os.path.join(root, file))
-    return random.choice(imgs)
-
-# Example: get a random test image
-x_test_path = get_random_paths(test_dataset_path)
-
-# 1️1️ SINGLE IMAGE PREDICTION .,
-
-# Loads one random test image and predicts its class
-
-img = image.load_img(x_test_path, target_size=(input_shape[0], input_shape[1]))
-img_array = image.img_to_array(img)
-img_array = np.expand_dims(img_array, 0)  # add batch dimension
+    Flatten(),
+    Dense(256,activation='relu'),
+    Dropout(0.5),
+    Dense(4,activation='softmax')
+])
 
 
-# 1️2️ VISUALIZE PREDICTIONS FOR EACH CLASS .,
 
-# Displays one random image from each tumor category
-
-plt.figure(figsize=(15, 5))
-
-for i, class_name in enumerate(labels):
-    class_path = os.path.join(test_dataset_path, class_name)
-    imgs = [f for f in os.listdir(class_path) if f.endswith('.jpg')]
-    if not imgs:
-        continue
-
-    img_file = np.random.choice(imgs)
-    img_path = os.path.join(class_path, img_file)
-
-    # Preprocess image before prediction
-    img = image.load_img(img_path, target_size=(input_shape[0], input_shape[1]))
-    img_array = image.img_to_array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
-
-    # Predict and find the most probable class
-    predicted_values = model.predict(img_array)
-    predicted_index = np.argmax(predicted_values)
-    predicted_class = labels[predicted_index]
-
-    plt.subplot(1, len(labels), i+1)
-    plt.imshow(img)
-    plt.title(predicted_class)
-    plt.axis('off')
-
-plt.show()
+model.compile(optimizer='adam',
+                loss='categorical_crossentropy',
+                metrics=['accuracy'])
 
 
-# 1️3️ PLOT TRAINING PERFORMANCE .,
+history=model.fit(train_gen,epochs=10,validation_data=test_gen)
 
-# Plot loss and accuracy curves to visualize training progress
+
+test_loss,test_acc=model.evaluate(test_gen)
+print("test_acc" , test_acc*100)
+
 
 plt.plot(H.history['loss'], label='Training Loss')
 plt.plot(H.history['accuracy'], label='Training Accuracy')
@@ -196,13 +80,27 @@ plt.legend()
 plt.show()
 
 
-# 1️4 FINAL MODEL EVALUATION .,
+class_labels = list(train_gen.class_indices.keys())
 
-# Evaluate the trained CNN on test data
-# Returns test loss and accuracy
+# Pick random image from test folder
+cls = random.choice(os.listdir(test_dir))
+img_name = random.choice(os.listdir(os.path.join(test_dir, cls)))
+img_path = os.path.join(test_dir, cls, img_name)
 
-test_loss, test_acc = model.evaluate(test_generator)
-print(f"\n Test Accuracy: {test_acc*100:.2f}%")
+# Load and show image
+img = tf.keras.utils.load_img(img_path, target_size=(150,150))
+plt.imshow(img)
+plt.axis('off')
+
+# Predict
+x = np.expand_dims(tf.keras.utils.img_to_array(img)/255.0, axis=0)
+pred = model.predict(x)
+plt.title(f"Actual: {cls} | Predicted: {class_labels[np.argmax(pred)]}")
+plt.show()
+
+
+
+
 
 # THEORY :- 
 
@@ -228,3 +126,4 @@ print(f"\n Test Accuracy: {test_acc*100:.2f}%")
  This CNN learns to classify brain MRI images into 4 tumor categories
  (e.g., glioma, meningioma, pituitary, or no tumor) by extracting 
  key visual features from training data.
+
