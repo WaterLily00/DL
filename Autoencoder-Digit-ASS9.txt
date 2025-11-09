@@ -28,60 +28,103 @@ from tensorflow.keras import regularizers
 # - Data compression
 # ------------------------------------------------------------
 
-# Step 1: Load and prepare the MNIST dataset
+import numpy as np
+import tensorflow 
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, InputLayer
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras import regularizers
+import matplotlib.pyplot as plt
 
-(x_train, _), (x_test, _) = mnist.load_data()  # We only use the images, not labels
 
-x_train = x_train.astype("float32") / 255.0    # Normalize pixel values (0–255 → 0–1)
+(x_train, _),(x_test, _) = mnist.load_data()
+
+
+x_train = x_train.astype("float32") / 255.0
 x_test = x_test.astype("float32") / 255.0
 
-# Flatten 28x28 images → 784-length vectors (since Dense layers need 1D input)
-x_train = x_train.reshape((len(x_train), -1))
+
+x_train = x_train.reshape((len(x_train), -1))  # flatten 28x28 -> 784
 x_test = x_test.reshape((len(x_test), -1))
 
-print("Training data shape:", x_train.shape)
-print("Testing data shape:", x_test.shape)
+
+x_test.shape
+
+# AUTOENCODER in SEQUENTIAL form
+# ----------------------------
+autoencoder = Sequential([
+    # ----- Encoder -----
+    InputLayer(input_shape=(784,)),
+    Dense(128, activation='relu', activity_regularizer=regularizers.l1(1e-5)),
+    Dense(64, activation='relu'),
+    
+    # ----- Latent representation -----
+    Dense(32, activation='sigmoid'),
+    
+    # ----- Decoder -----
+    Dense(64, activation='relu'),
+    Dense(128, activation='relu'),
+    Dense(784, activation='sigmoid')
+])
 
 
-# Step 2: Build the Autoencoder Architecture
+# Compile model
+autoencoder.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
 
-# Input layer (784 neurons for 28x28 pixels)
+# Train
+history = autoencoder.fit(
+    x_train, x_train,
+    epochs=70,
+    batch_size=256,
+    shuffle=True,
+    validation_data=(x_test, x_test)
+)
 
+decoded_imgs = autoencoder.predict(x_test[:10])
+
+
+index = 1  # choose any index between 0–9999 (for MNIST test set)
+
+plt.figure(figsize=(6, 3))
+
+# Original image
+plt.subplot(1, 2, 1)
+plt.imshow(x_test[index].reshape(28, 28), cmap="gray")
+plt.title("Original")
+plt.axis("off")
+
+# Reconstructed image
+plt.subplot(1, 2, 2)
+plt.imshow(decoded_imgs[index].reshape(28, 28), cmap="gray")
+plt.title("Reconstructed")
+plt.axis("off")
+
+plt.show()
+
+
+-------------------------------------############-------------------------
+
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras import regularizers
+(x_train, _), (x_test, _) = mnist.load_data()
+x_train = x_train.astype("float32") / 255.0
+x_test = x_test.astype("float32") / 255.0
+x_train = x_train.reshape((len(x_train), -1))
+x_test = x_test.reshape((len(x_test), -1))
 input_img = Input(shape=(784,))
-
-# ------------------ Encoder ------------------
-# Compress input into smaller feature representations
-# L1 regularizer adds sparsity (forces some neurons to be inactive)
-
-encoded = Dense(128, activation="relu",
-                activity_regularizer=regularizers.l1(1e-5))(input_img)
+encoded = Dense(128, activation="relu",activity_regularizer=regularizers.l1(1e-5))(input_img)  # sparsity
 encoded = Dense(64, activation="relu")(encoded)
-latent = Dense(32, activation="sigmoid")(encoded)  # Latent space (compressed features)
-
-# ------------------- Decoder -------------------------------
-# Reconstruct image back from compressed latent space
-
+latent = Dense(32, activation="sigmoid")(encoded)  
 decoded = Dense(64, activation="relu")(latent)
 decoded = Dense(128, activation="relu")(decoded)
-output_img = Dense(784, activation="sigmoid")(decoded)   # Output image (same size as input)
-
-# Combine encoder + decoder into one Autoencoder model
-
+output_img = Dense(784, activation="sigmoid")(decoded)
 autoencoder = Model(input_img, output_img)
-
-
-# Step 3: Compile the model
-
-# Loss: Binary crossentropy — measures reconstruction difference
-# Optimizer: Adam — adaptive gradient-based optimizer
 autoencoder.compile(optimizer="adam", loss="binary_crossentropy")
-
-
-# Step 4: Train the Autoencoder
-
-# The model tries to reconstruct x_train from itself.
-# The goal is to learn compressed representations that preserve key information.
 history = autoencoder.fit(
     x_train, x_train,
     epochs=20,
@@ -89,34 +132,20 @@ history = autoencoder.fit(
     shuffle=True,
     validation_data=(x_test, x_test)
 )
-
-
-# Step 5: Test the Autoencoder (Reconstruction)
-
-# We use trained model to reconstruct test images
-
 decoded_imgs = autoencoder.predict(x_test[:10])
-
-
-# Step 6: Visualize original vs reconstructed images
-
-n = 10  # show 10 images
+n = 10
 plt.figure(figsize=(20, 4))
-
 for i in range(n):
-    # ---- Original Image ----
     ax = plt.subplot(2, n, i + 1)
     plt.imshow(x_test[i].reshape(28, 28), cmap="gray")
-    plt.title("Original")
     plt.axis("off")
-
-    # ---- Reconstructed Image ----
     ax = plt.subplot(2, n, i + 1 + n)
     plt.imshow(decoded_imgs[i].reshape(28, 28), cmap="gray")
-    plt.title("Reconstructed")
     plt.axis("off")
-
 plt.show()
+
+   
+-------------------------------------############-------------------------
 
 
 # THEORY SUMMARY :- 
@@ -140,4 +169,5 @@ plt.show()
 # Simple words:
  Autoencoders learn to “see” what matters most in data and recreate it
  from a compressed form — like zipping and unzipping an image file.
+
 
