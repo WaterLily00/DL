@@ -19,6 +19,11 @@ from tensorflow.keras.models import Sequential                                  
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout   # CNN and Dense layers
 
 
+import zipfile
+zip_path = "/content/Fashion MNIST-20221031T093245Z-001.zip"
+
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall("/content/FashionMNIST")
 train_dir=r"C:\Users\sapar\Downloads\brain tumour\Training"
 test_dir=r"C:\Users\sapar\Downloads\brain tumour\Testing"
 
@@ -126,4 +131,5 @@ plt.show()
  This CNN learns to classify brain MRI images into 4 tumor categories
  (e.g., glioma, meningioma, pituitary, or no tumor) by extracting 
  key visual features from training data.
+
 
